@@ -2,8 +2,7 @@ class master_data_aligner_monitor_base;
 
     virtual data_aligner_intf_in vif_in;
 
-    mailbox#(packet_in_1) in_mbx_1;
-    mailbox#(packet_in_2) in_mbx_2;
+    mailbox#(packet_in) in_mbx;
 
     virtual task run();
         forever begin
@@ -21,20 +20,25 @@ class master_data_aligner_monitor_base;
     
 
     virtual task monitor_master();
-        packet_in_1 p_in1;
-        packet_in_2 p_in2;
+        packet_in p_in;
 
         forever begin
             @(posedge vif_in.clk);
-            if (vif_in.vld_1st_i) begin
-                p_in1 = new();
-                p_in1.data_1st_i = vif_in.data_1st_i;
-                in_mbx_1.put(p_in1);
-            end
-            if (vif_in.vld_2d_i) begin
-                p_in2 = new();
-                p_in2.data_2d_i = vif_in.data_2d_i;
-                in_mbx_2.put(p_in2);
+            if (vif_in.vld_1st_i || vif_in.vld_2d_i) begin
+                p_in = new();
+                if (vif_in.vld_1st_i) begin
+                    p_in.data_1st_i = vif_in.data_1st_i;
+                end
+                if (vif_in.vld_2d_i) begin
+                    p_in.data_2d_i = vif_in.data_2d_i;
+                    in_mbx.put(p_in);
+                end
+
+                // Отправляем пакет, когда пришли все данные 
+                if (vif_in.vld_1st_i && vif_in.vld_2d_i) begin
+                    $display($time, " [MONITOR] Packet sent to mailbox, \nData $p_in.data_1st_i, data_2d_i: %0h, %0h", p_in.data_1st_i, p_in.data_2d_i);
+                    in_mbx.put(p_in);
+                end
             end
         end
     endtask
@@ -59,7 +63,7 @@ class slave_data_aligner_monitor_base;
         end
     endtask
 
-    virtual task monitor_slave(port_list);
+    virtual task monitor_slave();
         packet_out p_out;
         forever begin
             @(posedge vif_out.clk);
